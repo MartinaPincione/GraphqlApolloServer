@@ -10,13 +10,15 @@ import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHt
 import { expressMiddleware } from '@apollo/server/express4';
 import cors from 'cors';
 import bodyParser from 'body-parser'; //allows parsing of json files
+import { products } from './dataset';
+
 
 // Asynchronous Anonymous Function 
     // server will be using await 
 
 ( async function () {
     // server code
-
+    
     //publish and subscribe to events, enables to publish events to label and listen to events associated to that label
     const pubsub = new PubSub(); 
     const app = express();
@@ -31,17 +33,17 @@ import bodyParser from 'body-parser'; //allows parsing of json files
     const typeDefs = gql`
         
         type Product { 
-            title: String
+            name: String
             id: Int
             description: String
 
         }
         type Query {
-            placeholder: Boolean
+            products: [Product]
         }
 
         type Mutation {
-            createProduct(title: String, id: Int, description: String): Product
+            createProduct(name: String, id: Int, description: String): Product
         }
 
         type Subscription {
@@ -51,7 +53,7 @@ import bodyParser from 'body-parser'; //allows parsing of json files
 
     // this is the objects used in the CreateProduct function
     interface createProductInput {
-        title: string
+        name: string
         id: number
         description: string
     }
@@ -60,7 +62,7 @@ import bodyParser from 'body-parser'; //allows parsing of json files
     // Resolvers, large object that defines queries, mutations and subscriptions 
         const resolvers = {
             Query: {
-                placeholder: () => { return true }
+                products: () => products,
             },
             Mutation: {
                 createProduct: ( _parent: any, args: createProductInput ) => {
