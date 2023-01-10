@@ -52,7 +52,12 @@ import { argsToArgsConfig } from 'graphql/type/definition';
         }
 
         type Subscription {
-            productfeed: Product
+            user: UserSubscription!
+        }
+
+        type UserSubscription {
+            mutation: String
+            postFeed: Product
         }
     `
 
@@ -77,10 +82,13 @@ import { argsToArgsConfig } from 'graphql/type/definition';
             },
             Mutation: {
                 addProduct: ( _parent: any, args: addProductInput ) => {
-                   console.log(args);
                    products.push(args);
                    //console.log(products);
-                   pubsub.publish('EVENT_CREATED', { productfeed: args }); //when creating Product, publish to EVENT_CREATED
+                   pubsub.publish('USER', { 
+                    user: {
+                        mutation: "EVENT ADDED",
+                        postFeed: args,
+                   }}); //when creating Product, publish to EVENT_CREATED
                     //save Products to a database here (optional)
                    return args;
                 },
@@ -90,23 +98,32 @@ import { argsToArgsConfig } from 'graphql/type/definition';
                         throw new Error("This product does not exist, and therefore cannot be deleted.");
                     }
                     const productRemoved= products.splice(indexToDelete, 1);
-                    pubsub.publish('EVENT_DELETED', { productRemoved });
-                    console.log(productRemoved);
+                    pubsub.publish('USER', { 
+                        user: {
+                            mutation: "EVENT DELETED",
+                            postFeed: productRemoved[0],
+                         }});
                     return productRemoved;
                 },
                 updateProductDescription: (_parent: any, args: addProductInput) => {
                     const indexToAlter = products.findIndex( product => product.id === args.id);
                     if (indexToAlter === -1) throw new Error("This product does not exist, and therefore cannot be altered");
                     products[indexToAlter].description = args.description;
-                    pubsub.publish('EVENT_EDITED', { products});
-                    console.log(products[indexToAlter]);
-                    return products[indexToAlter];
+                    const changed = products[indexToAlter];
+                    pubsub.publish('USER', { 
+                        user: {
+                            mutation: 'EVENT UPDATED',
+                            postFeed: changed
+                    }});
+                    return changed;
                 },
             },
             Subscription: {
-                productfeed: {
+                user: {
                     //asyncIterator waits for a certain event to get triggered
-                    subscribe: () => pubsub.asyncIterator(['EVENT_CREATED', 'EVENT_DELETED', 'EVENT_EDITED'])
+                    subscribe () {
+                        return pubsub.asyncIterator(['USER']);
+                    }
                 }
             }
         }
