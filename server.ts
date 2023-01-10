@@ -11,6 +11,7 @@ import { expressMiddleware } from '@apollo/server/express4';
 import cors from 'cors';
 import bodyParser from 'body-parser'; //allows parsing of json files
 import { products } from './dataset';
+import { argsToArgsConfig } from 'graphql/type/definition';
 
 
 // Asynchronous Anonymous Function 
@@ -40,19 +41,23 @@ import { products } from './dataset';
         }
         type Query {
             products: [Product]
+            productByName(name: String): Product
+            productById(id: Int): Product
         }
 
         type Mutation {
-            createProduct(name: String, id: Int, description: String): Product
+            addProduct(name: String, id: Int, description: String): Product
+            deleteProduct(id: Int): Product
+            updateProductDescription(id: Int, description: String): Product
         }
 
         type Subscription {
-            newsfeed: Product
+            productfeed: Product
         }
     `
 
-    // this is the objects used in the CreateProduct function
-    interface createProductInput {
+    // this is the objects used in the addProduct function
+    interface addProductInput {
         name: string
         id: number
         description: string
@@ -63,20 +68,45 @@ import { products } from './dataset';
         const resolvers = {
             Query: {
                 products: () => products,
-            },
-            Mutation: {
-                createProduct: ( _parent: any, args: createProductInput ) => {
-                   console.log(args);
-                    pubsub.publish('EVENT_CREATED', { newsfeed: args }); //when creating Product, publish to EVENT_CREATED
-
-                    //save Products to a database here (optional)
-                   return args;
+                productByName: (_: any, args: any) => {
+                    return products.find((product) => product.name === args.name);
+                },
+                productById: (_:any, args: any) => {
+                    return products.find((product) => product.id === args.id);
                 }
             },
+            Mutation: {
+                addProduct: ( _parent: any, args: addProductInput ) => {
+                   console.log(args);
+                   products.push(args);
+                   //console.log(products);
+                   pubsub.publish('EVENT_CREATED', { productfeed: args }); //when creating Product, publish to EVENT_CREATED
+                    //save Products to a database here (optional)
+                   return args;
+                },
+                deleteProduct: (_parent: any, args: addProductInput) => {
+                    const indexToDelete = products.findIndex( product => product.id === args.id);
+                    if (indexToDelete === -1) {
+                        throw new Error("This product does not exist, and therefore cannot be deleted.");
+                    }
+                    const productRemoved= products.splice(indexToDelete, 1);
+                    pubsub.publish('EVENT_DELETED', { productRemoved });
+                    console.log(productRemoved);
+                    return productRemoved;
+                },
+                updateProductDescription: (_parent: any, args: addProductInput) => {
+                    const indexToAlter = products.findIndex( product => product.id === args.id);
+                    if (indexToAlter === -1) throw new Error("This product does not exist, and therefore cannot be altered");
+                    products[indexToAlter].description = args.description;
+                    pubsub.publish('EVENT_EDITED', { products});
+                    console.log(products[indexToAlter]);
+                    return products[indexToAlter];
+                },
+            },
             Subscription: {
-                newsfeed: {
+                productfeed: {
                     //asyncIterator waits for a certain event to get triggered
-                    subscribe: () => pubsub.asyncIterator(['EVENT_CREATED'])
+                    subscribe: () => pubsub.asyncIterator(['EVENT_CREATED', 'EVENT_DELETED', 'EVENT_EDITED'])
                 }
             }
         }
